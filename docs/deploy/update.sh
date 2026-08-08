@@ -32,6 +32,9 @@ fi
 
 echo "==> Fetching latest code in ${APP_DIR}"
 cd "${APP_DIR}"
+# We run as root against a checkout owned by the service user; newer git aborts
+# that with "dubious ownership" unless the path is marked safe.
+git config --global --add safe.directory "${APP_DIR}"
 BEFORE="$(git rev-parse --short HEAD)"
 git pull --ff-only
 AFTER="$(git rev-parse --short HEAD)"
