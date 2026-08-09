@@ -138,6 +138,13 @@ export async function exchangeCodeForTokens(
  * Use the refresh token to obtain a new access token.
  *
  * POSTs to the WHOOP token endpoint with `grant_type=refresh_token`.
+ *
+ * `scope=offline` is REQUIRED: WHOOP only returns a NEW refresh token when the
+ * refresh request itself requests the `offline` scope. Omit it and WHOOP hands
+ * back an access token with no replacement refresh token, so the next refresh
+ * reuses a now-consumed token and fails — the server then works only until the
+ * first access-token expiry (~1h) after each restart, refreshing silently no
+ * more. See the rotating-refresh-token contract in the WHOOP OAuth docs.
  */
 export async function refreshAccessToken(
   refreshToken: string,
@@ -148,6 +155,7 @@ export async function refreshAccessToken(
     refresh_token: refreshToken,
     client_id: config.clientId,
     client_secret: config.clientSecret,
+    scope: "offline",
   });
 
   let response: Response;

@@ -287,6 +287,21 @@ describe("refreshAccessToken", () => {
     expect(body.get("client_secret")).toBe("test-client-secret");
   });
 
+  it("requests scope=offline so WHOOP rotates the refresh token", async () => {
+    // Without scope=offline, WHOOP returns no replacement refresh token and the
+    // next refresh fails — the server dies ~1h after each restart. Lock it in.
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(MOCK_TOKEN_RESPONSE),
+    });
+
+    await refreshAccessToken("refresh-token-abc", TEST_CONFIG);
+
+    const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const body = new URLSearchParams(options.body as string);
+    expect(body.get("scope")).toBe("offline");
+  });
+
   it("uses application/x-www-form-urlencoded content type", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
