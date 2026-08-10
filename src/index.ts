@@ -144,7 +144,17 @@ export async function main(): Promise<void> {
       );
     }
 
-    const refreshed = await refreshAccessToken(tokens.refresh_token, oauthConfig);
+    let refreshed;
+    try {
+      refreshed = await refreshAccessToken(tokens.refresh_token, oauthConfig);
+    } catch (error: unknown) {
+      // A refresh failure previously vanished silently — the server would 401
+      // every request with no diagnostic. Surface it loudly at error level.
+      logger.error("whoop token refresh failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
     const newTokens = toOAuthTokens(refreshed, tokens.refresh_token);
     await saveTokens(newTokens);
 
