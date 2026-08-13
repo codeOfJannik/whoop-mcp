@@ -246,10 +246,17 @@ export function createWhoopClient(options: WhoopClientOptions): WhoopClient {
   }
 
   async function parseErrorBody(response: Response): Promise<unknown> {
+    // Read the body EXACTLY ONCE as text, then attempt JSON. Calling
+    // `response.json()` first and falling back to `response.text()` throws
+    // "body already read" whenever the body isn't valid JSON — and WHOOP's 401
+    // is served as `content-type: application/json` but with a bare-string body
+    // (`Authorization was not valid`). That double-read exception escaped doGet
+    // BEFORE the 401 refresh handler ran, so token refresh never fired on a 401.
+    const text = await response.text();
     try {
-      return await response.json();
+      return JSON.parse(text);
     } catch {
-      return await response.text();
+      return text;
     }
   }
 
