@@ -290,9 +290,16 @@ export async function createHttpServer(options: HttpServerOptions): Promise<Http
     ? undefined
     : new StreamableHTTPServerTransport({ sessionIdGenerator: () => randomUUID() });
 
-  // Create HTTP server
-  const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+  const handleRequest = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    // Fixed base: only the request target is parsed, never the Host header.
+    // Targets like "//" or "//@" are unparseable and must not crash the process.
+    let url: URL;
+    try {
+      url = new URL(req.url ?? "/", "http://localhost");
+    } catch {
+      sendJson(res, 400, { error: "Bad Request" });
+      return;
+    }
     const pathname = url.pathname;
 
     // CORS handling
@@ -416,6 +423,18 @@ export async function createHttpServer(options: HttpServerOptions): Promise<Http
 
     // Unknown routes
     sendJson(res, 404, { error: "Not Found" });
+  };
+
+  // Create HTTP server. The callback is sync so a rejected handler can never
+  // become an unhandledRejection (which would exit the process).
+  const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+    handleRequest(req, res).catch(() => {
+      if (!res.headersSent) {
+        sendJson(res, 500, { error: "Internal Server Error" });
+      } else {
+        res.destroy();
+      }
+    });
   });
 
   // Start listening

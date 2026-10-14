@@ -699,4 +699,22 @@ describe("HTTP Server", () => {
       ]);
     });
   });
+
+  describe("unparseable request targets", () => {
+    beforeEach(async () => {
+      const result = await createHttpServer(defaultOptions);
+      server = result.server;
+      cleanup = result.close;
+    });
+
+    it.each(["//", "///", "//@"])("responds 400 to GET %s and keeps serving", async (path) => {
+      const res = await request(server, path);
+      expect(res.status).toBe(400);
+      expect(JSON.parse(res.body)).toEqual({ error: "Bad Request" });
+
+      // The process must survive: a follow-up request is still answered.
+      const health = await request(server, "/health");
+      expect(health.status).toBe(200);
+    });
+  });
 });
