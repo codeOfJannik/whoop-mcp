@@ -188,7 +188,7 @@ describe("createWhoopClient", () => {
         statusText: "Too Many Requests",
         headers: { get: () => null },
         json: () => Promise.resolve({ retry_after: 30 }),
-        text: () => Promise.resolve("rate limited"),
+        text: () => Promise.resolve(JSON.stringify({ retry_after: 30 })),
       } as unknown as Response;
       mockFetch
         .mockResolvedValueOnce(response429)
@@ -547,6 +547,46 @@ describe("createWhoopClient", () => {
       );
     });
 
+    it("refreshes on a 401 whose body is not valid JSON (WHOOP's real 401)", async () => {
+      // WHOOP serves 401 as content-type application/json but with a bare-string
+      // body ("Authorization was not valid"). A Response body can be read only
+      // once, so json()-then-text() throws "body already read" and the refresh
+      // handler was never reached. This mock enforces single-read to lock that in.
+      function mock401NonJsonBody(): Response {
+        let used = false;
+        const consume = (): string => {
+          if (used) throw new TypeError("Body has already been read");
+          used = true;
+          return "Authorization was not valid";
+        };
+        return {
+          ok: false,
+          status: 401,
+          statusText: "Unauthorized",
+          headers: { get: () => null },
+          json: () => Promise.resolve(consume()).then((t) => JSON.parse(t) as unknown),
+          text: () => Promise.resolve(consume()),
+        } as unknown as Response;
+      }
+
+      const NEW_TOKEN = "refreshed_after_nonjson_401";
+      mockFetch
+        .mockResolvedValueOnce(mock401NonJsonBody())
+        .mockResolvedValueOnce(mockJsonResponse({ user_id: 7 }));
+      const onTokenRefresh = vi.fn().mockResolvedValue(NEW_TOKEN);
+      const client = createWhoopClient({
+        accessToken: TEST_TOKEN,
+        baseUrl: TEST_BASE_URL,
+        onTokenRefresh,
+      });
+
+      const result = await client.get<{ user_id: number }>("/v2/user/profile/basic");
+
+      expect(result.user_id).toBe(7);
+      expect(onTokenRefresh).toHaveBeenCalledOnce();
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
     it("throws WhoopApiError if retry after refresh also returns 401", async () => {
       mockFetch.mockResolvedValueOnce(mock401Response()).mockResolvedValueOnce(mock401Response());
       const onTokenRefresh = vi.fn().mockResolvedValue("new_token");
@@ -734,6 +774,7 @@ describe("createWhoopClient", () => {
           statusText: "Too Many Requests",
           headers: headers429,
           json: () => Promise.resolve({ message: "rate limited" }),
+          text: () => Promise.resolve(JSON.stringify({ message: "rate limited" })),
         } as unknown as Response)
         .mockResolvedValueOnce({
           ok: true,
@@ -762,6 +803,7 @@ describe("createWhoopClient", () => {
           statusText: "Too Many Requests",
           headers: headers429,
           json: () => Promise.resolve({ message: "rate limited" }),
+          text: () => Promise.resolve(JSON.stringify({ message: "rate limited" })),
         } as unknown as Response)
         .mockResolvedValueOnce({
           ok: true,
@@ -846,6 +888,7 @@ describe("createWhoopClient — logger integration", () => {
         statusText: "Too Many Requests",
         headers: headers429,
         json: () => Promise.resolve({ message: "rate limited" }),
+        text: () => Promise.resolve(JSON.stringify({ message: "rate limited" })),
       } as unknown as Response)
       .mockResolvedValueOnce({
         ok: true,
