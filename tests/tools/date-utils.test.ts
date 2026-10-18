@@ -61,10 +61,21 @@ describe("resolveDateExpression", () => {
     expect(result).toEqual({ start: iso, end: iso });
   });
 
-  it("passes through ISO 8601 date-only strings unchanged", () => {
-    const iso = "2026-01-15";
-    const result = resolveDateExpression(iso);
-    expect(result).toEqual({ start: iso, end: iso });
+  // WHOOP answers 404 to start/end values without a timezone designator.
+  it("expands ISO 8601 date-only strings to UTC day bounds", () => {
+    const result = resolveDateExpression("2026-01-15");
+    expect(result).toEqual({
+      start: "2026-01-15T00:00:00.000Z",
+      end: "2026-01-15T23:59:59.999Z",
+    });
+  });
+
+  it("reads ISO 8601 date-times without a timezone as UTC", () => {
+    const result = resolveDateExpression("2026-01-15T08:30:00");
+    expect(result).toEqual({
+      start: "2026-01-15T08:30:00Z",
+      end: "2026-01-15T08:30:00Z",
+    });
   });
 
   it("passes through ISO 8601 with timezone offset", () => {

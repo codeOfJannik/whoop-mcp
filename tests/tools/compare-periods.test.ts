@@ -335,6 +335,27 @@ describe("comparePeriods", () => {
     expect(getMock).toHaveBeenCalledTimes(6);
   });
 
+  it("sends full UTC timestamps for date-only periods", async () => {
+    getMock.mockResolvedValue(paginated([]));
+
+    const result = await comparePeriods(client, {
+      period_a_start: "2026-05-01",
+      period_a_end: "2026-05-07",
+      period_b_start: "2026-05-08",
+      period_b_end: "2026-05-14",
+    });
+
+    const firstCall = getMock.mock.calls[0]?.[0] as string;
+    const params = new URLSearchParams(firstCall.split("?")[1]);
+    expect(params.get("start")).toBe("2026-05-01T00:00:00.000Z");
+    expect(params.get("end")).toBe("2026-05-07T23:59:59.999Z");
+    expect(result.period_b).toEqual({
+      start: "2026-05-08T00:00:00.000Z",
+      end: "2026-05-14T23:59:59.999Z",
+      days: expect.closeTo(7, 5),
+    });
+  });
+
   it("accepts enhanced date expressions", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-28T12:00:00.000Z"));

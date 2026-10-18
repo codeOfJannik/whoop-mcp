@@ -42,6 +42,12 @@ const MAX_LAST_N_DAYS = 365;
 export const ISO_8601_REGEX =
   /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{1,3})?(Z|[+-]\d{2}:\d{2})?)?$/;
 
+/** Regex for an ISO 8601 date without a time part */
+const ISO_DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Regex for a trailing ISO 8601 timezone designator */
+const ISO_TIMEZONE_REGEX = /(Z|[+-]\d{2}:\d{2})$/;
+
 /** Regex for "last N days" expressions */
 const LAST_N_DAYS_REGEX = /^last\s+(\d+)\s+days?$/i;
 
@@ -111,7 +117,7 @@ function lastDayOfMonthUTC(year: number, month: number): Date {
  * Resolve a date expression to an ISO 8601 start/end range.
  *
  * Supported expressions (case-insensitive):
- * - ISO 8601 strings (pass-through)
+ * - ISO 8601 strings (date-only → UTC day bounds, no timezone → UTC)
  * - "today"
  * - "yesterday"
  * - "last N days" (1 ≤ N ≤ 365)
@@ -135,9 +141,14 @@ export function resolveDateExpression(expression: string): DateRange {
     throw new InvalidDateExpression("Unrecognized date expression: empty string");
   }
 
-  // ISO 8601 pass-through
+  // ISO 8601. WHOOP answers 404 to values without a timezone designator, so a
+  // bare date expands to its UTC day bounds and a bare date-time is read as UTC.
   if (ISO_8601_REGEX.test(trimmed)) {
-    return { start: trimmed, end: trimmed };
+    if (ISO_DATE_ONLY_REGEX.test(trimmed)) {
+      return { start: `${trimmed}T00:00:00.000Z`, end: `${trimmed}T23:59:59.999Z` };
+    }
+    const zoned = ISO_TIMEZONE_REGEX.test(trimmed) ? trimmed : `${trimmed}Z`;
+    return { start: zoned, end: zoned };
   }
 
   const lower = trimmed.toLowerCase();
