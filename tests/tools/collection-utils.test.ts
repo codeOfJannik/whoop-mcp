@@ -143,6 +143,13 @@ describe("buildCollectionQuery", () => {
       expect(params.get("start")).toBe("2026-04-01T00:00:00.000Z");
     });
 
+    it("expands date-only start/end to full UTC timestamps", () => {
+      const query = buildCollectionQuery({ start: "2026-04-01", end: "2026-04-10" });
+      const params = new URLSearchParams(query.slice(1));
+      expect(params.get("start")).toBe("2026-04-01T00:00:00.000Z");
+      expect(params.get("end")).toBe("2026-04-10T23:59:59.999Z");
+    });
+
     it("throws InvalidDateExpression for unrecognized expressions", () => {
       expect(() => buildCollectionQuery({ start: "next tuesday" })).toThrow(
         "Unrecognized date expression"

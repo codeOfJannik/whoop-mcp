@@ -496,6 +496,15 @@ describe("getWeeklySummary", () => {
     expect(firstCall).toContain("start=2026-05-12T00%3A00%3A00.000Z");
   });
 
+  it("sends a full UTC timestamp for a date-only week_start", async () => {
+    getMock.mockResolvedValue(paginated([]));
+
+    await getWeeklySummary(client, { week_start: "2026-05-12" });
+
+    const firstCall = getMock.mock.calls[0]?.[0] as string;
+    expect(firstCall).toContain("start=2026-05-12T00%3A00%3A00.000Z");
+  });
+
   it("excludes naps from sleep duration calculation", async () => {
     const sleeps = [
       makeSleep({ nap: false, start: "2026-05-25T22:00:00.000Z", end: "2026-05-26T06:00:00.000Z" }),
